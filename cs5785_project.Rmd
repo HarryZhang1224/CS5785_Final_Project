@@ -1,0 +1,64 @@
+---
+title: "Untitled"
+output: pdf_document
+date: '2023-09-28'
+---
+```{r}
+library(minfi)
+library(dplyr)
+library(data.table)
+library(EpiSCORE)
+```
+
+
+# Process data
+```{r, eval=FALSE}
+series_matrix <- getGenomicRatioSetFromGEO(GSE="GSE60185", what="Beta")
+meta_data <- data.frame(colData(series_matrix))
+DNAm <- getBeta(series_matrix)
+meta_data$subtype <- sapply(seq_len(nrow(meta_data)), function(idx){
+  if(meta_data$disease.state.ch1[idx] == "normal"){
+    "normal"
+  }else{
+    meta_data$sample.tissue.ch1[idx]
+  }
+})
+DNAm <- DNAm[, meta_data$title]
+cols_to_save <- c("title", "age.ch1", "disease.state.ch1", "subtype")
+meta_data <- meta_data %>%
+  select(cols_to_save)
+colnames(meta_data) <- c("sample_id", "age", "disease_state", "disease_subtype")
+DNAm <- DNAm[apply(DNAm, 1, function(cpg){
+  !any(is.na(cpg))
+}), ]
+DNAm_gene_level <- constAvBetaTSS(DNAm, type="450k")
+project_data <- list(methylation_matrix=DNAm, metadata=meta_data, methylation_matrix_gene_level=DNAm_gene_level)
+saveRDS(project_data, "project_data.RDS")
+```
+
+# Read in data
+```{r}
+project_data <- readRDS("project_data.RDS")
+t1 <- data.table(project_data$methylation_matrix, keep.rownames=TRUE)
+gene_level_mat <- data.table(project_data$methylation_matrix_gene_level, keep.rownames=TRUE)
+fwrite(t1, 
+       file="feature_matrix.csv.gz",
+       row.names=TRUE,
+       col.names=TRUE,
+       compress="gzip", 
+       nThread=10)
+fwrite(gene_level_mat,
+       file="feature_matrix_genelevel.csv.gz",
+       row.names=FALSE,
+       col.names=TRUE,
+       compress="gzip",
+       nThread=10)
+fwrite(project_data$metadata,
+       file="metadata.csv.gz",
+       col.names=TRUE,
+       compress="gzip")
+
+```
+
+
+
