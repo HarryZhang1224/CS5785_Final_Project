@@ -8,6 +8,8 @@ library(minfi)
 library(dplyr)
 library(data.table)
 library(EpiSCORE)
+library(missMethyl)
+library(pals)
 ```
 
 
@@ -59,6 +61,29 @@ fwrite(project_data$metadata,
        compress="gzip")
 
 ```
+
+# Enrichment analysis
+```{r}
+sig_cpgs <- read.csv("top_unique_cpgs.csv", header=FALSE)
+gometh_res <- gometh(sig.cpg=sig_cpgs$V1,
+                     all.cpg=rownames(project_data$methylation_matrix),
+                     array.type="450k",
+                     sig.genes=TRUE)
+gometh_res_rearranged <- gometh_res %>%
+  mutate(GeneRatio=DE/N) %>%
+  filter(ONTOLOGY=="BP") %>%
+  arrange(FDR) %>%
+  slice_head(n=50)
+gometh_res_rearranged
+ggplot(gometh_res_rearranged[1:30, ], aes(DE, reorder(TERM, DE), fill=FDR)) +
+  geom_bar(stat="identity") +
+  ylab("") +
+  theme_bw() +
+  labs(fill="adjusted p-value") +
+  xlab("DMG Count")
+ggsave("enrichment_analysis_results.png", height=6, width=7, dpi=800)
+```
+
 
 
 
